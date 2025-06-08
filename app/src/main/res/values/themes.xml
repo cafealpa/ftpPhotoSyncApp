@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+    Base application theme for light mode.
+    This theme is applied to the splash screen and the app before Compose takes over.
+    All colors and styles are handled by PhotoBackerUpperTheme.kt in Compose.
+    -->
+    <style name="Theme.PhotoBackerUpper" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
