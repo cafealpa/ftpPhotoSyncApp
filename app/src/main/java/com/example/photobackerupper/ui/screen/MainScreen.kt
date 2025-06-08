@@ -1,0 +1,192 @@
+package com.example.photobackerupper.ui.screen
+
+import android.Manifest
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.example.photobackerupper.ui.viewmodel.MainViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import java.util.Locale
+
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(
+    viewModel: MainViewModel = hiltViewModel(),
+    onNavigateToSettings: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // 권한 요청
+    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        listOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+    } else {
+        listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+    val permissionState = rememberMultiplePermissionsState(permissions)
+
+    LaunchedEffect(key1 = true) {
+        if (!permissionState.allPermissionsGranted) {
+            permissionState.launchMultiplePermissionRequest()
+        }
+    }
+
+    // 에러 메시지 스낵바
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.dismissError()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text("사진 백업") },
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (uiState.isBackingUp) {
+                BackupProgressView(state = uiState, viewModel = viewModel)
+            } else {
+                Button(
+                    onClick = {
+                        if (permissionState.allPermissionsGranted) {
+                            viewModel.startBackup()
+                        } else {
+                            Toast.makeText(context, "사진 접근 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.size(200.dp, 60.dp)
+                ) {
+                    Text("백업 실행", fontSize = 20.sp)
+                }
+            }
+        }
+    }
+
+    // 백업 완료 팝업
+    if (uiState.backupResult != null) {
+        BackupResultDialog(
+            result = uiState.backupResult!!,
+            onDismiss = { viewModel.dismissResultDialog() }
+        )
+    }
+}
+
+@Composable
+fun BackupProgressView(
+    state: com.example.photobackerupper.ui.viewmodel.MainUiState,
+    viewModel: MainViewModel = hiltViewModel()
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+        CircularProgressIndicator()
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "백업 진행 중... (${state.completedFileCount} / ${state.totalFilesToBackup})",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { viewModel.stopBackup() },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("중지")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            items(state.completedFiles.reversed()) { file ->
+                BackupItem(file)
+            }
+        }
+    }
+}
+
+@Composable
+fun BackupItem(file: com.example.photobackerupper.ui.viewmodel.BackupFileUiModel) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = file.thumbnailUri,
+                contentDescription = file.name,
+                modifier = Modifier.size(60.dp),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(file.name, maxLines = 1, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = String.format(Locale.getDefault(), "%.2f MB | %.1f 초", file.sizeMb, file.durationSeconds),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BackupResultDialog(result: com.example.photobackerupper.ui.viewmodel.BackupResult, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("백업 완료") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("성공: ${result.successCount}개, 실패: ${result.failureCount}개")
+                Text("총 백업 파일 수: ${result.totalBackedUpFiles}개")
+                Text(String.format(Locale.getDefault(), "총 백업 크기: %.2f MB", result.totalBackedUpSizeMb))
+                Text(String.format(Locale.getDefault(), "총 소요 시간: %.1f 초", result.totalTimeSeconds))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("확인")
+            }
+        }
+    )
+}
