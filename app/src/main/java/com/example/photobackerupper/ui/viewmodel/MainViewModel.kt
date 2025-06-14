@@ -296,4 +296,13 @@ class MainViewModel @Inject constructor(
         }
         context.startService(intent)
     }
+
+    fun showBackupProgress() {
+        // isBackingUp 상태를 true로 변경하여 UI가 BackupProgressView를 표시하도록 함
+        // 필요하다면, 여기서 실제 서비스로부터 현재 백업 진행률을 가져오는 로직을 추가할 수 있습니다.
+        _uiState.update { currentState ->
+            currentState.copy(isBackingUp = true)
+        }
+
+    }
 }

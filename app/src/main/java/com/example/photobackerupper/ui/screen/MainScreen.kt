@@ -108,6 +108,33 @@ fun BackupProgressView(
     state: MainUiState,
     viewModel: MainViewModel = hiltViewModel()
 ) {
+    // 중지 확인 다이얼로그 상태 관리
+    var showStopConfirmDialog by remember { mutableStateOf(false) }
+
+    // 중지 확인 다이얼로그
+    if (showStopConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirmDialog = false },
+            title = { Text("백업 중지") },
+            text = { Text("백업을 중지하시겠습니까?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.stopBackup()
+                        showStopConfirmDialog = false
+                    }
+                ) {
+                    Text("확인")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirmDialog = false }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -121,7 +148,7 @@ fun BackupProgressView(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
-            onClick = { viewModel.stopBackup() },
+            onClick = { showStopConfirmDialog = true },
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
         ) {
             Text("중지")

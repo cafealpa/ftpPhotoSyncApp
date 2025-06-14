@@ -72,7 +72,7 @@ class BackupService : Service() {
 
     // 알림을 관리하기 위한 NotificationManager.
     private val notificationManager by lazy {
-        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        getSystemService(NOTIFICATION_SERVICE) as NotificationManager
     }
 
     // WakeLock을 사용하여 백업 중에 기기가 절전 모드로 전환되지 않도록 함
@@ -227,12 +227,18 @@ class BackupService : Service() {
      * @return 생성된 Notification 객체.
      */
     private fun createNotification(): Notification {
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = "SHOW_BACKUP_PROGRESS"
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
         // 알림을 클릭하면 MainActivity로 이동하는 PendingIntent.
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE // 변경할 수 없는 PendingIntent를 생성합니다.
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val state = backupState.value // 현재 백업 상태 가져오기
