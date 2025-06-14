@@ -504,6 +504,7 @@ class BackupService : Service() {
 
     /**
      * 백업 프로세스를 중지하고 관련 상태를 업데이트합니다.
+     * 중지 시점까지 업로드 완료된 항목에 대해 DB를 업데이트합니다.
      */
     private fun stopBackup() {
         // WakeLock 해제
@@ -513,9 +514,6 @@ class BackupService : Service() {
             }
         }
 
-        backupJob?.cancel() // 진행 중인 백업 작업 취소
-        backupJob = null
-
         // 백업 상태를 업데이트하여 백업이 중지되었음을 반영합니다.
         _backupState.update {
             it.copy(
@@ -523,6 +521,9 @@ class BackupService : Service() {
                 errorMessage = "백업이 사용자에 의해 중지되었습니다."
             )
         }
+
+        // 백업 작업을 취소하기 전에 현재 상태를 저장
+        val currentState = _backupState.value
 
         // 백업 세션 엔티티 업데이트 - 사용자에 의한 중지
         if (currentSessionId > 0) {
@@ -535,19 +536,54 @@ class BackupService : Service() {
                         id = currentSessionId,
                         backupTimestamp = session.backupTimestamp,
                         backupResult = BackupResult.USER_CANCELLED,
-                        successCount = _backupState.value.successCount,
-                        failureCount = _backupState.value.failureCount,
+                        successCount = currentState.successCount,
+                        failureCount = currentState.failureCount,
                         totalDurationMs = durationMs
                     )
                     backupSessionDao.insertSession(updatedSession)
+
+                    // 로그 추가
+                    logger.info("백업 중지: 성공=${currentState.successCount}, 실패=${currentState.failureCount}, 총 업로드 크기=${currentState.totalUploadedSize}")
                 }
             }
         }
 
-        // 백업 중지 오류 브로드캐스트를 보냅니다.
-        sendBroadcast(Intent(ACTION_BACKUP_ERROR).apply {
-            putExtra(EXTRA_ERROR_MESSAGE, "백업이 사용자에 의해 중지되었습니다.")
-        }.setPackage(packageName))
+        // 백업 작업 취소
+        backupJob?.cancel()
+        backupJob = null
+
+        // 백업 세션 정보를 가져와서 브로드캐스트를 보냅니다.
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val session = if (currentSessionId > 0) {
+                    backupSessionDao.getSessionById(currentSessionId)
+                } else null
+
+                val sessionStartTime = session?.backupTimestamp ?: System.currentTimeMillis()
+
+                withContext(Dispatchers.Main) {
+                    // 백업 중지 오류 브로드캐스트를 보냅니다.
+                    sendBroadcast(Intent(ACTION_BACKUP_ERROR).apply {
+                        putExtra(EXTRA_ERROR_MESSAGE, "백업이 사용자에 의해 중지되었습니다.")
+                        putExtra(EXTRA_SUCCESS_COUNT, currentState.successCount)
+                        putExtra(EXTRA_FAILURE_COUNT, currentState.failureCount)
+                        putExtra(EXTRA_TOTAL_SIZE_MB, currentState.totalUploadedSize / 1024f / 1024f)
+                        putExtra(EXTRA_SESSION_START_TIME, sessionStartTime)
+                    }.setPackage(packageName))
+                }
+            } catch (e: Exception) {
+                logger.warning("세션 정보 가져오기 실패: ${e.message}")
+                // 오류 발생 시 기본 브로드캐스트 전송
+                withContext(Dispatchers.Main) {
+                    sendBroadcast(Intent(ACTION_BACKUP_ERROR).apply {
+                        putExtra(EXTRA_ERROR_MESSAGE, "백업이 사용자에 의해 중지되었습니다.")
+                        putExtra(EXTRA_SUCCESS_COUNT, currentState.successCount)
+                        putExtra(EXTRA_FAILURE_COUNT, currentState.failureCount)
+                        putExtra(EXTRA_TOTAL_SIZE_MB, currentState.totalUploadedSize / 1024f / 1024f)
+                    }.setPackage(packageName))
+                }
+            }
+        }
     }
 
     /**

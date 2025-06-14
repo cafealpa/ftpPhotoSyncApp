@@ -184,12 +184,45 @@ class MainViewModel @Inject constructor(
                     BackupService.ACTION_BACKUP_ERROR -> {
                         val errorMessage = intent.getStringExtra(BackupService.EXTRA_ERROR_MESSAGE)
 
-                        _uiState.update {
-                            it.copy(
-                                processingText = "에러발생",
-                                isBackingUp = false,
-                                errorMessage = errorMessage
+                        // 사용자가 백업을 중지한 경우, 성공 및 실패 카운트를 가져옴
+                        val successCount = intent.getIntExtra(BackupService.EXTRA_SUCCESS_COUNT, 0)
+                        val failureCount = intent.getIntExtra(BackupService.EXTRA_FAILURE_COUNT, 0)
+                        val totalSizeMb = intent.getFloatExtra(BackupService.EXTRA_TOTAL_SIZE_MB, 0f)
+
+                        // 세션 시작 시간을 가져와서 경과 시간 계산
+                        val sessionStartTime = intent.getLongExtra(BackupService.EXTRA_SESSION_START_TIME, 0L)
+                        val durationSeconds = if (sessionStartTime > 0) {
+                            (System.currentTimeMillis() - sessionStartTime) / 1000f
+                        } else {
+                            0f
+                        }
+
+                        // 사용자가 백업을 중지한 경우에도 백업 결과를 표시
+                        if (errorMessage?.contains("사용자에 의해 중지") == true && (successCount > 0 || failureCount > 0)) {
+                            val result = BackupResult(
+                                successCount = successCount,
+                                failureCount = failureCount,
+                                totalBackedUpFiles = successCount + failureCount,
+                                totalBackedUpSizeMb = totalSizeMb,
+                                totalTimeSeconds = durationSeconds
                             )
+
+                            _uiState.update {
+                                it.copy(
+                                    processingText = "중지됨",
+                                    isBackingUp = false,
+                                    errorMessage = errorMessage,
+                                    backupResult = result
+                                )
+                            }
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    processingText = "에러발생",
+                                    isBackingUp = false,
+                                    errorMessage = errorMessage
+                                )
+                            }
                         }
                     }
                 }
