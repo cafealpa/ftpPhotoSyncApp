@@ -22,6 +22,7 @@ import com.example.photobackerupper.ui.viewmodel.BackupSessionUiModel
 import com.example.photobackerupper.ui.viewmodel.FileHistoryUiModel
 import com.example.photobackerupper.ui.viewmodel.HistoryViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     onNavigateBack: () -> Unit,

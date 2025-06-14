@@ -248,30 +248,32 @@ class MainViewModel @Inject constructor(
         context.startService(intent)
     }
 
-    private fun createHistoryEntity(file: File, result: Result<Long>): FileHistoryEntity {
-        return result.fold(
-            onSuccess = { duration ->
-                FileHistoryEntity(
-                    filePath = file.absolutePath,
-                    fileName = file.name,
-                    fileSize = file.length(),
-                    uploadTimestamp = System.currentTimeMillis(),
-                    uploadDurationMs = duration,
-                    status = BackupStatus.SUCCESS
-                )
-            },
-            onFailure = {
-                FileHistoryEntity(
-                    filePath = file.absolutePath,
-                    fileName = file.name,
-                    fileSize = file.length(),
-                    uploadTimestamp = System.currentTimeMillis(),
-                    uploadDurationMs = 0,
-                    status = BackupStatus.FAILURE
-                )
-            }
-        )
-    }
+//    private fun createHistoryEntity(file: File, result: Result<Long>): FileHistoryEntity {
+//        return result.fold(
+//            onSuccess = { duration ->
+//                FileHistoryEntity(
+//                    filePath = file.absolutePath,
+//                    fileName = file.name,
+//                    fileSize = file.length(),
+//                    uploadTimestamp = System.currentTimeMillis(),
+//                    uploadDurationMs = duration,
+//                    status = BackupStatus.SUCCESS,
+//                    sessionId = currentSessionId
+//                )
+//            },
+//            onFailure = {
+//                FileHistoryEntity(
+//                    filePath = file.absolutePath,
+//                    fileName = file.name,
+//                    fileSize = file.length(),
+//                    uploadTimestamp = System.currentTimeMillis(),
+//                    uploadDurationMs = 0,
+//                    status = BackupStatus.FAILURE,
+//                    sessionId = currentSessionId
+//                )
+//            }
+//        )
+//    }
 
     fun dismissResultDialog() {
         _uiState.update { it.copy(backupResult = null) }
