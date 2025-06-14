@@ -25,6 +25,9 @@ class FtpClientWrapper @Inject constructor() {
     ): Result<Long> = withContext(Dispatchers.IO) {
         val ftpClient = FTPClient()
         try {
+            // 한글 파일명을 위한 UTF-8 인코딩 설정
+            ftpClient.setControlEncoding("UTF-8")
+
             // 타임아웃 설정 (더 짧게 설정하여 빠른 재시도)
             ftpClient.connectTimeout = 20000 // 20초
             ftpClient.defaultTimeout = 20000 // 20초
@@ -172,6 +175,8 @@ class FtpClientWrapper @Inject constructor() {
                     if (!ftpClient.isConnected) {
                         logger.info("FTP connection lost, reconnecting...")
                         ftpClient.connect(settings.serverIp, settings.port)
+                        // 한글 파일명을 위한 UTF-8 인코딩 설정 (재연결 시에도 필요)
+                        ftpClient.setControlEncoding("UTF-8")
                         ftpClient.login(settings.userName, settings.password)
                         ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
                         ftpClient.enterLocalPassiveMode()
