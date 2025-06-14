@@ -16,4 +16,7 @@ interface BackupHistoryDao {
 
     @Query("SELECT * FROM file_history ORDER BY uploadTimestamp DESC")
     suspend fun getAllHistory(): List<FileHistoryEntity> // History 화면용
+
+    @Query("SELECT * FROM file_history WHERE uploadTimestamp >= :startTimestamp ORDER BY uploadTimestamp DESC")
+    suspend fun getHistoryAfterTimestamp(startTimestamp: Long): List<FileHistoryEntity> // 특정 시간 이후 완료된 항목
 }

@@ -1,43 +1,35 @@
 package com.example.photobackerupper.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
+import android.app.*
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.net.toUri
 import com.example.photobackerupper.MainActivity
 import com.example.photobackerupper.R
 import com.example.photobackerupper.data.local.dao.BackupHistoryDao
 import com.example.photobackerupper.data.local.entity.BackupStatus
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
-import com.example.photobackerupper.data.model.FtpSettings
 import com.example.photobackerupper.data.remote.FtpClientWrapper
 import com.example.photobackerupper.data.repository.PhotoRepository
 import com.example.photobackerupper.data.repository.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.util.logging.Logger
 import javax.inject.Inject
+import android.os.PowerManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 
 /**
  * 백그라운드에서 사진 백업을 처리하는 서비스.
@@ -83,6 +75,14 @@ class BackupService : Service() {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
 
+    // WakeLock을 사용하여 백업 중에 기기가 절전 모드로 전환되지 않도록 함
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    // 네트워크 상태 모니터링을 위한 변수
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var isNetworkAvailable = true
+
     /**
      * 서비스 전체에서 사용되는 상수 및 작업 정의를 포함하는 동반 객체입니다.
      */
@@ -110,6 +110,7 @@ class BackupService : Service() {
         const val EXTRA_TOTAL_SIZE_MB = "com.example.photobackerupper.extra.TOTAL_SIZE_MB"
         const val EXTRA_DURATION_SECONDS = "com.example.photobackerupper.extra.DURATION_SECONDS"
         const val EXTRA_ERROR_MESSAGE = "com.example.photobackerupper.extra.ERROR_MESSAGE"
+        const val EXTRA_SESSION_START_TIME = "com.example.photobackerupper.extra.SESSION_START_TIME"
     }
 
     /**
@@ -139,6 +140,18 @@ class BackupService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // WakeLock 초기화
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "PhotoBackerUpper::BackupWakeLock"
+        ).apply {
+            setReferenceCounted(false)
+        }
+
+        // 네트워크 모니터링 설정
+        setupNetworkMonitoring()
     }
 
     /**
@@ -179,6 +192,16 @@ class BackupService : Service() {
      * 실행 중인 모든 코루틴을 취소하여 리소스를 해제합니다.
      */
     override fun onDestroy() {
+        // WakeLock 해제
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+
+        // 네트워크 콜백 해제
+        unregisterNetworkCallback()
+
         serviceScope.cancel() // 모든 코루틴 취소
         super.onDestroy()
     }
@@ -191,7 +214,8 @@ class BackupService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_LOW // 백업 진행 상황이므로 낮은 중요도
+            NotificationManager.IMPORTANCE_LOW ,// 백업 진행 상황이므로 낮은 중요도
+
         ).apply {
             description = "Shows backup progress"
         }
@@ -213,8 +237,16 @@ class BackupService : Service() {
 
         val state = backupState.value // 현재 백업 상태 가져오기
         val contentText = if (state.isBackingUp) {
-            // 백업 중일 때 진행 상황 텍스트 표시
-            "${state.completedCount}/${state.totalCount} 파일 백업 중..."
+            if (!isNetworkAvailable) {
+                // 네트워크 연결이 끊겼을 때
+                "네트워크 연결 대기 중... (${state.completedCount}/${state.totalCount})"
+            } else {
+                // 백업 중일 때 진행 상황 텍스트 표시
+                val percentComplete = if (state.totalCount > 0) {
+                    (state.completedCount.toFloat() / state.totalCount.toFloat() * 100).toInt()
+                } else 0
+                "${state.completedCount}/${state.totalCount} 파일 백업 중... ($percentComplete%)"
+            }
         } else {
             // 백업이 진행 중이 아닐 때 준비 텍스트 표시
             "백업 서비스 준비 중..."
@@ -228,6 +260,7 @@ class BackupService : Service() {
             .setContentIntent(pendingIntent) // 알림 클릭 시 실행될 인텐트
             .setProgress(state.totalCount, state.completedCount, state.totalCount == 0) // 진행률 표시줄
             .setOngoing(true) // 알림을 스와이프하여 해제할 수 없도록 합니다.
+            .setOnlyAlertOnce(false) // 업데이트마다 알림이 표시되도록 설정
             .build()
     }
 
@@ -235,7 +268,9 @@ class BackupService : Service() {
      * 현재 백업 상태로 알림을 업데이트합니다.
      */
     private fun updateNotification() {
-        notificationManager.notify(NOTIFICATION_ID, createNotification())
+        serviceScope.launch(Dispatchers.Main) {
+            notificationManager.notify(NOTIFICATION_ID, createNotification())
+        }
     }
 
     /**
@@ -243,6 +278,9 @@ class BackupService : Service() {
      * 이 함수는 서비스 코루틴 스코프 내에서 비동기적으로 실행됩니다.
      */
     private fun startBackup() {
+        // WakeLock 획득
+        wakeLock?.acquire(3 * 60 * 60 * 1000L) // 최대 3시간 동안 WakeLock 유지
+
         // 기존 백업 작업이 있으면 취소합니다.
         backupJob?.cancel()
 
@@ -262,8 +300,13 @@ class BackupService : Service() {
             }
             updateNotification() // 알림 업데이트
 
+            // 백업 시작 시간 기록
+            val sessionStartTime = System.currentTimeMillis()
+
             // 백업 시작 브로드캐스트를 보냅니다.
-            sendBroadcast(Intent(ACTION_BACKUP_STARTED).setPackage(packageName))
+            sendBroadcast(Intent(ACTION_BACKUP_STARTED).apply {
+                putExtra(EXTRA_SESSION_START_TIME, sessionStartTime)
+            }.setPackage(packageName))
 
             val startTime = System.currentTimeMillis() // 백업 시작 시간 기록
             var successCount = 0
@@ -325,15 +368,25 @@ class BackupService : Service() {
                                 )
                             }
 
-                            updateNotification() // 알림 업데이트
+                            // 백업 상태가 변경될 때마다 UI 스레드에서 알림을 업데이트합니다
+                            serviceScope.launch(Dispatchers.Main) {
+                                updateNotification() // 알림 업데이트
+                            }
 
                             // 진행 상황 브로드캐스트
-                            sendBroadcast(Intent(ACTION_BACKUP_PROGRESS).apply {
-                                putExtra(EXTRA_COMPLETED_COUNT, _backupState.value.completedCount)
-                                putExtra(EXTRA_TOTAL_COUNT, _backupState.value.totalCount)
+                            serviceScope.launch(Dispatchers.Main) {
+                                sendBroadcast(Intent(ACTION_BACKUP_PROGRESS).apply {
+                                    putExtra(EXTRA_COMPLETED_COUNT, _backupState.value.completedCount)
+                                    putExtra(EXTRA_TOTAL_COUNT, _backupState.value.totalCount)
+                                    putExtra(EXTRA_SESSION_START_TIME, startTime) // 세션 시작 시간 추가
 
-                                logger.info("EXTRA_COMPLETED_COUNT: ${_backupState.value.completedCount}, EXTRA_TOTAL_COUNT: ${_backupState.value.totalCount}");
-                            }.setPackage(packageName))
+                                    logger.info("EXTRA_COMPLETED_COUNT: ${_backupState.value.completedCount}, EXTRA_TOTAL_COUNT: ${_backupState.value.totalCount}");
+                                }.setPackage(packageName))
+                                // 알림도 즉시 업데이트
+                                updateNotification()
+                                // 포그라운드 서비스 알림 업데이트
+                                notificationManager.notify(NOTIFICATION_ID, createNotification())
+                            }
 
                             historyEntity // async의 결과로 historyEntity를 반환하여 나중에 집계
                         }
@@ -397,6 +450,13 @@ class BackupService : Service() {
      * 백업 프로세스를 중지하고 관련 상태를 업데이트합니다.
      */
     private fun stopBackup() {
+        // WakeLock 해제
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+
         backupJob?.cancel() // 진행 중인 백업 작업 취소
         backupJob = null
 
@@ -445,5 +505,91 @@ class BackupService : Service() {
                 )
             }
         )
+    }
+
+    /**
+     * 네트워크 상태 모니터링을 설정합니다.
+     * 네트워크 변경 사항을 감지하고 백업 프로세스에 영향을 줄 수 있는 변화에 대응합니다.
+     */
+    private fun setupNetworkMonitoring() {
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        // 네트워크 요청 구성
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+
+        // 네트워크 콜백 정의
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                super.onAvailable(network)
+                // 네트워크가 사용 가능해졌을 때
+                logger.info("Network became available")
+                isNetworkAvailable = true
+
+                // FTP 연결에 문제가 있었던 경우 네트워크가 복구된 것이므로 알림
+                if (_backupState.value.isBackingUp) {
+                    updateNotification() // 알림 업데이트
+                }
+            }
+
+            override fun onLost(network: Network) {
+                super.onLost(network)
+                // 네트워크 연결이 끊겼을 때
+                logger.warning("Network connection lost")
+                isNetworkAvailable = false
+
+                if (_backupState.value.isBackingUp) {
+                    // 네트워크 연결이 끊겼음을 알림에 표시
+                    updateNotification()
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                super.onCapabilitiesChanged(network, networkCapabilities)
+                // 네트워크 기능이 변경되었을 때 (예: WiFi에서 모바일 데이터로 전환)
+                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                val hasNotMetered = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+
+                logger.info("Network capabilities changed: Internet=$hasInternet, NotMetered=$hasNotMetered")
+
+                // 인터넷 연결 상태가 변경되었을 때만 상태 업데이트
+                if (isNetworkAvailable != hasInternet) {
+                    isNetworkAvailable = hasInternet
+                    if (_backupState.value.isBackingUp) {
+                        updateNotification()
+                    }
+                }
+            }
+        }
+
+        // 네트워크 콜백 등록
+        connectivityManager?.registerNetworkCallback(networkRequest, networkCallback!!)
+    }
+
+    /**
+     * 네트워크 콜백을 해제합니다.
+     */
+    private fun unregisterNetworkCallback() {
+        networkCallback?.let {
+            try {
+                connectivityManager?.unregisterNetworkCallback(it)
+                networkCallback = null
+            } catch (e: Exception) {
+                logger.warning("Error unregistering network callback: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 현재 네트워크 연결 상태를 확인합니다.
+     * @return 네트워크가 연결되어 있으면 true, 그렇지 않으면 false
+     */
+    private fun isNetworkConnected(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 }

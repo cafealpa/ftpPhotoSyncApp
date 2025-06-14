@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.example.photobackerupper.ui.viewmodel.MainUiState
 import com.example.photobackerupper.ui.viewmodel.MainViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -104,7 +105,7 @@ fun MainScreen(
 
 @Composable
 fun BackupProgressView(
-    state: com.example.photobackerupper.ui.viewmodel.MainUiState,
+    state: MainUiState,
     viewModel: MainViewModel = hiltViewModel()
 ) {
     Column(
@@ -115,7 +116,7 @@ fun BackupProgressView(
         CircularProgressIndicator()
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "백업 진행 중... (${state.completedFileCount} / ${state.totalFilesToBackup})",
+            text = "${state.processingText} (${state.completedFileCount} / ${state.totalFilesToBackup})",
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -130,7 +131,7 @@ fun BackupProgressView(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            items(state.completedFiles.reversed()) { file ->
+            items(state.completedFiles) { file ->
                 BackupItem(file)
             }
         }

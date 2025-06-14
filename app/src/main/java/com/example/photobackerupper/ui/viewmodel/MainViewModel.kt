@@ -34,6 +34,7 @@ data class MainUiState(
     val completedFiles: List<BackupFileUiModel> = emptyList(),
     val totalFilesToBackup: Int = 0,
     val completedFileCount: Int = 0,
+    val processingText: String = "",
     val backupResult: BackupResult? = null,
     val errorMessage: String? = null
 )
@@ -78,6 +79,7 @@ class MainViewModel @Inject constructor(
                 completedFiles = emptyList(),
                 totalFilesToBackup = 0,
                 completedFileCount = 0,
+                processingText = "",
                 errorMessage = null,
                 backupResult = null
             )
@@ -107,6 +109,7 @@ class MainViewModel @Inject constructor(
                             it.copy(
                                 isBackingUp = true,
                                 completedFiles = emptyList(),
+                                processingText = "시작준비 중",
                                 totalFilesToBackup = 0,
                                 completedFileCount = 0,
                                 errorMessage = null,
@@ -124,6 +127,7 @@ class MainViewModel @Inject constructor(
                         // Update UI immediately with the latest counts
                         _uiState.update {
                             it.copy(
+                                processingText = "진행중",
                                 completedFileCount = completedCount,
                                 totalFilesToBackup = totalCount
                             )
@@ -132,14 +136,14 @@ class MainViewModel @Inject constructor(
                         // Fetch only the files completed in the current backup process
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                // Get all history items ordered by timestamp (most recent first)
-                                val allHistoryList = backupHistoryDao.getAllHistory()
+                                // 백업 시작 시점의 타임스탬프 가져오기
+                                val sessionStartTime = intent.getLongExtra(BackupService.EXTRA_SESSION_START_TIME, 0L)
 
-                                if (allHistoryList.isNotEmpty() && completedCount > 0) {
-                                    // Take only the most recent items based on the completedCount
-                                    val currentBackupHistoryList = allHistoryList.take(completedCount)
+                                // 현재 백업 세션에서 완료된 항목만 가져오기
+                                val currentSessionHistory = backupHistoryDao.getHistoryAfterTimestamp(sessionStartTime)
 
-                                    val fileUiModels = currentBackupHistoryList.map { historyItem ->
+                                if (currentSessionHistory.isNotEmpty() && completedCount > 0) {
+                                    val fileUiModels = currentSessionHistory.map { historyItem ->
                                         BackupFileUiModel(
                                             thumbnailUri = File(historyItem.filePath).toUri(),
                                             name = historyItem.fileName,
@@ -148,7 +152,7 @@ class MainViewModel @Inject constructor(
                                         )
                                     }
 
-                                    // Update UI again with both counts and files
+                                    // Update UI with current session files
                                     _uiState.update { state ->
                                         state.copy(
                                             completedFiles = fileUiModels,
@@ -179,6 +183,7 @@ class MainViewModel @Inject constructor(
 
                         _uiState.update {
                             it.copy(
+                                processingText = "완료",
                                 isBackingUp = false,
                                 backupResult = result
                             )
@@ -189,6 +194,7 @@ class MainViewModel @Inject constructor(
 
                         _uiState.update {
                             it.copy(
+                                processingText = "에러발생",
                                 isBackingUp = false,
                                 errorMessage = errorMessage
                             )
