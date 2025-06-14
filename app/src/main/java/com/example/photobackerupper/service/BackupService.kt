@@ -9,6 +9,9 @@ import androidx.core.app.NotificationCompat
 import com.example.photobackerupper.MainActivity
 import com.example.photobackerupper.R
 import com.example.photobackerupper.data.local.dao.BackupHistoryDao
+import com.example.photobackerupper.data.local.dao.BackupSessionDao
+import com.example.photobackerupper.data.local.entity.BackupResult
+import com.example.photobackerupper.data.local.entity.BackupSessionEntity
 import com.example.photobackerupper.data.local.entity.BackupStatus
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
 import com.example.photobackerupper.data.remote.FtpClientWrapper
@@ -57,12 +60,19 @@ class BackupService : Service() {
     @Inject
     lateinit var backupHistoryDao: BackupHistoryDao
 
+    // BackupSessionDao 주입: 백업 세션 기록을 로컬 데이터베이스에 저장하는 데 사용됩니다.
+    @Inject
+    lateinit var backupSessionDao: BackupSessionDao
+
     // 서비스 수명 주기 동안 코루틴을 관리하기 위한 CoroutineScope.
     // SupervisorJob은 자식 코루틴이 실패하더라도 다른 자식 코루틴이 계속 실행되도록 합니다.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // 현재 진행 중인 백업 작업을 나타내는 Job.
     private var backupJob: Job? = null
+
+    // 현재 백업 세션의 ID
+    private var currentSessionId: Long = 0
 
     // 백업 진행 상황 및 상태를 UI에 노출하기 위한 MutableStateFlow.
     private val _backupState = MutableStateFlow(BackupState())
@@ -309,6 +319,18 @@ class BackupService : Service() {
             // 백업 시작 시간 기록
             val sessionStartTime = System.currentTimeMillis()
 
+            // 백업 세션 엔티티 생성 및 저장
+            val sessionEntity = BackupSessionEntity(
+                backupTimestamp = sessionStartTime,
+                backupResult = BackupResult.COMPLETED, // 초기값, 나중에 업데이트됨
+                successCount = 0,
+                failureCount = 0,
+                totalDurationMs = 0
+            )
+
+            // 세션 ID 저장
+            currentSessionId = backupSessionDao.insertSession(sessionEntity)
+
             // 백업 시작 브로드캐스트를 보냅니다.
             sendBroadcast(Intent(ACTION_BACKUP_STARTED).apply {
                 putExtra(EXTRA_SESSION_START_TIME, sessionStartTime)
@@ -411,7 +433,21 @@ class BackupService : Service() {
                 }
 
                 val endTime = System.currentTimeMillis() // 백업 종료 시간 기록
-                val durationSeconds = (endTime - startTime) / 1000f // 총 백업 시간 계산
+                val durationMs = endTime - startTime // 총 백업 시간 계산 (밀리초)
+                val durationSeconds = durationMs / 1000f // 초 단위로 변환
+
+                // 백업 세션 엔티티 업데이트
+                if (currentSessionId > 0) {
+                    val updatedSession = BackupSessionEntity(
+                        id = currentSessionId,
+                        backupTimestamp = startTime,
+                        backupResult = BackupResult.COMPLETED,
+                        successCount = successCount,
+                        failureCount = failureCount,
+                        totalDurationMs = durationMs
+                    )
+                    backupSessionDao.insertSession(updatedSession)
+                }
 
                 // 5. 최종 결과 업데이트
                 _backupState.update {
@@ -440,6 +476,21 @@ class BackupService : Service() {
                         isBackingUp = false,
                         errorMessage = e.message ?: "알 수 없는 오류가 발생했습니다." // 오류 메시지 설정
                     )
+                }
+
+                // 백업 세션 엔티티 업데이트 - 에러로 인한 중지
+                if (currentSessionId > 0) {
+                    val endTime = System.currentTimeMillis()
+                    val durationMs = endTime - startTime
+                    val updatedSession = BackupSessionEntity(
+                        id = currentSessionId,
+                        backupTimestamp = startTime,
+                        backupResult = BackupResult.ERROR_STOPPED,
+                        successCount = _backupState.value.successCount,
+                        failureCount = _backupState.value.failureCount,
+                        totalDurationMs = durationMs
+                    )
+                    backupSessionDao.insertSession(updatedSession)
                 }
 
                 // 백업 오류 브로드캐스트를 보냅니다.
@@ -474,6 +525,26 @@ class BackupService : Service() {
             )
         }
 
+        // 백업 세션 엔티티 업데이트 - 사용자에 의한 중지
+        if (currentSessionId > 0) {
+            serviceScope.launch(Dispatchers.IO) {
+                val endTime = System.currentTimeMillis()
+                val session = backupSessionDao.getSessionById(currentSessionId)
+                if (session != null) {
+                    val durationMs = endTime - session.backupTimestamp
+                    val updatedSession = BackupSessionEntity(
+                        id = currentSessionId,
+                        backupTimestamp = session.backupTimestamp,
+                        backupResult = BackupResult.USER_CANCELLED,
+                        successCount = _backupState.value.successCount,
+                        failureCount = _backupState.value.failureCount,
+                        totalDurationMs = durationMs
+                    )
+                    backupSessionDao.insertSession(updatedSession)
+                }
+            }
+        }
+
         // 백업 중지 오류 브로드캐스트를 보냅니다.
         sendBroadcast(Intent(ACTION_BACKUP_ERROR).apply {
             putExtra(EXTRA_ERROR_MESSAGE, "백업이 사용자에 의해 중지되었습니다.")
@@ -496,7 +567,8 @@ class BackupService : Service() {
                     fileSize = file.length(),
                     uploadTimestamp = System.currentTimeMillis(),
                     uploadDurationMs = duration,
-                    status = BackupStatus.SUCCESS
+                    status = BackupStatus.SUCCESS,
+                    sessionId = currentSessionId
                 )
             },
             onFailure = {
@@ -507,7 +579,8 @@ class BackupService : Service() {
                     fileSize = file.length(),
                     uploadTimestamp = System.currentTimeMillis(),
                     uploadDurationMs = 0, // 실패 시 지속 시간 0
-                    status = BackupStatus.FAILURE
+                    status = BackupStatus.FAILURE,
+                    sessionId = currentSessionId
                 )
             }
         )

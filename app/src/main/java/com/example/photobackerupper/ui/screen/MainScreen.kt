@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,7 +29,8 @@ import java.util.Locale
 @Composable
 fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToHistory: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -62,8 +64,11 @@ fun MainScreen(
             TopAppBar(
                 title = { Text("사진 백업") },
                 actions = {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Filled.List, contentDescription = "이력")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(Icons.Filled.Settings, contentDescription = "설정")
                     }
                 }
             )

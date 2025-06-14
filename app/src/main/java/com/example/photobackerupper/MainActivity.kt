@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.photobackerupper.ui.screen.HistoryScreen
 import com.example.photobackerupper.ui.screen.MainScreen
 import com.example.photobackerupper.ui.screen.SettingsScreen
 import com.example.photobackerupper.ui.viewmodel.MainViewModel
@@ -32,11 +33,17 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController = navController, startDestination = "main") {
                     composable("main") {
                         MainScreen(
-                            onNavigateToSettings = { navController.navigate("settings") }
+                            onNavigateToSettings = { navController.navigate("settings") },
+                            onNavigateToHistory = { navController.navigate("history") }
                         )
                     }
                     composable("settings") {
                         SettingsScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("history") {
+                        HistoryScreen(
                             onNavigateBack = { navController.popBackStack() }
                         )
                     }
