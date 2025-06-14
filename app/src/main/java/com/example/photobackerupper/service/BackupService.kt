@@ -1,7 +1,6 @@
 package com.example.photobackerupper.service
 
 import android.app.*
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
@@ -15,7 +14,7 @@ import com.example.photobackerupper.data.local.entity.BackupSessionEntity
 import com.example.photobackerupper.data.local.entity.BackupStatus
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
 import com.example.photobackerupper.data.remote.FtpClientWrapper
-import com.example.photobackerupper.data.repository.PhotoRepository
+import com.example.photobackerupper.data.repository.MediaRepository
 import com.example.photobackerupper.data.repository.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -46,7 +45,7 @@ class BackupService : Service() {
 
     // PhotoRepository 주입: 장치에서 사진을 검색하는 데 사용됩니다.
     @Inject
-    lateinit var photoRepository: PhotoRepository
+    lateinit var mediaRepository: MediaRepository
 
     // SettingsRepository 주입: FTP 설정과 같은 앱 설정을 관리하는 데 사용됩니다.
     @Inject
@@ -350,7 +349,7 @@ class BackupService : Service() {
                 }
 
                 // 2. 백업 대상 파일 목록 생성
-                val targetFiles = photoRepository.createBackupTargetList()
+                val targetFiles = mediaRepository.createBackupTargetList()
                 if (targetFiles.isEmpty()) {
                     // 백업할 새 파일이 없는 경우 처리
                     _backupState.update { it.copy(isBackingUp = false, errorMessage = "백업할 새로운 파일이 없습니다.") }

@@ -11,11 +11,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.photobackerupper.data.local.dao.BackupHistoryDao
-import com.example.photobackerupper.data.local.entity.BackupStatus
-import com.example.photobackerupper.data.local.entity.FileHistoryEntity
-import com.example.photobackerupper.data.remote.FtpClientWrapper
-import com.example.photobackerupper.data.repository.PhotoRepository
-import com.example.photobackerupper.data.repository.SettingsRepository
 import com.example.photobackerupper.service.BackupService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -57,9 +52,6 @@ data class BackupResult(
 @HiltViewModel
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val photoRepository: PhotoRepository,
-    private val settingsRepository: SettingsRepository,
-    private val ftpClient: FtpClientWrapper,
     private val backupHistoryDao: BackupHistoryDao
 ) : ViewModel() {
 
@@ -247,33 +239,6 @@ class MainViewModel @Inject constructor(
         }
         context.startService(intent)
     }
-
-//    private fun createHistoryEntity(file: File, result: Result<Long>): FileHistoryEntity {
-//        return result.fold(
-//            onSuccess = { duration ->
-//                FileHistoryEntity(
-//                    filePath = file.absolutePath,
-//                    fileName = file.name,
-//                    fileSize = file.length(),
-//                    uploadTimestamp = System.currentTimeMillis(),
-//                    uploadDurationMs = duration,
-//                    status = BackupStatus.SUCCESS,
-//                    sessionId = currentSessionId
-//                )
-//            },
-//            onFailure = {
-//                FileHistoryEntity(
-//                    filePath = file.absolutePath,
-//                    fileName = file.name,
-//                    fileSize = file.length(),
-//                    uploadTimestamp = System.currentTimeMillis(),
-//                    uploadDurationMs = 0,
-//                    status = BackupStatus.FAILURE,
-//                    sessionId = currentSessionId
-//                )
-//            }
-//        )
-//    }
 
     fun dismissResultDialog() {
         _uiState.update { it.copy(backupResult = null) }
