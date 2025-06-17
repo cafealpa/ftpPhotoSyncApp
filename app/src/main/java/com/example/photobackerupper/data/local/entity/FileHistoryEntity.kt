@@ -18,13 +18,14 @@ import androidx.room.PrimaryKey
     indices = [Index("sessionId")]
 )
 data class FileHistoryEntity(
-    @PrimaryKey val filePath: String,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    val filePath: String,
     val fileName: String,
     val fileSize: Long,
     val uploadTimestamp: Long,
     val uploadDurationMs: Long,
-    val status: BackupStatus,
-    val sessionId: Long
+    val status: BackupStatus
 )
 
 enum class BackupStatus {

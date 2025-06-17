@@ -103,7 +103,7 @@ class BackupService : Service() {
         // 서비스 작업을 시작하고 중지하기 위한 인텐트 작업.
         const val ACTION_START_BACKUP = "com.example.photobackerupper.action.START_BACKUP"
         const val ACTION_STOP_BACKUP = "com.example.photobackerupper.action.STOP_BACKUP"
-        const val EXTRA_RESULT = "com.example.photobackerupper.extra.RESULT"
+//        const val EXTRA_RESULT = "com.example.photobackerupper.extra.RESULT"
 
         // 백업 진행 상황을 UI에 브로드캐스트하기 위한 작업.
         const val ACTION_BACKUP_STARTED = "com.example.photobackerupper.action.BACKUP_STARTED"
@@ -445,7 +445,7 @@ class BackupService : Service() {
                         failureCount = failureCount,
                         totalDurationMs = durationMs
                     )
-                    backupSessionDao.insertSession(updatedSession)
+                    backupSessionDao.updateSession(updatedSession)
                 }
 
                 // 5. 최종 결과 업데이트
@@ -466,7 +466,11 @@ class BackupService : Service() {
                     putExtra(EXTRA_DURATION_SECONDS, durationSeconds)
                 }.setPackage(packageName))
 
-                stopSelf() // 서비스 중지
+//                stopSelf() // 서비스 중지
+
+//            } catch (ce: CancellationException) {
+                // 서비스 중지로 코루틴이 취소된 경우는 서비스 중지 실행
+//                stopSelf() // 서비스 중지
 
             } catch (e: Exception) {
                 // 6. 예외 처리
@@ -489,7 +493,7 @@ class BackupService : Service() {
                         failureCount = _backupState.value.failureCount,
                         totalDurationMs = durationMs
                     )
-                    backupSessionDao.insertSession(updatedSession)
+                    backupSessionDao.updateSession(updatedSession)
                 }
 
                 // 백업 오류 브로드캐스트를 보냅니다.
@@ -497,6 +501,8 @@ class BackupService : Service() {
                     putExtra(EXTRA_ERROR_MESSAGE, e.message ?: "알 수 없는 오류가 발생했습니다.")
                 }.setPackage(packageName))
 
+//                stopSelf() // 서비스 중지
+            } finally {
                 stopSelf() // 서비스 중지
             }
         }
@@ -540,7 +546,7 @@ class BackupService : Service() {
                         failureCount = currentState.failureCount,
                         totalDurationMs = durationMs
                     )
-                    backupSessionDao.insertSession(updatedSession)
+                    backupSessionDao.updateSession(updatedSession)
 
                     // 로그 추가
                     logger.info("백업 중지: 성공=${currentState.successCount}, 실패=${currentState.failureCount}, 총 업로드 크기=${currentState.totalUploadedSize}")
@@ -699,11 +705,11 @@ class BackupService : Service() {
      * 현재 네트워크 연결 상태를 확인합니다.
      * @return 네트워크가 연결되어 있으면 true, 그렇지 않으면 false
      */
-    private fun isNetworkConnected(): Boolean {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val capabilities = cm.getNetworkCapabilities(network) ?: return false
-
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
+//    private fun isNetworkConnected(): Boolean {
+//        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+//        val network = cm.activeNetwork ?: return false
+//        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+//
+//        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+//    }
 }

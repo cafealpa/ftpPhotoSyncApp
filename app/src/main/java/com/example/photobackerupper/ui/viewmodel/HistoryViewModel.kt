@@ -1,6 +1,6 @@
 package com.example.photobackerupper.ui.viewmodel
 
-import android.util.Log
+import android.annotation.SuppressLint
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.photobackerupper.data.local.dao.BackupHistoryDao
@@ -10,17 +10,10 @@ import com.example.photobackerupper.data.local.entity.BackupSessionEntity
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 import javax.inject.Inject
 
 /**
@@ -226,6 +219,7 @@ class HistoryViewModel @Inject constructor(
      * 
      * @return UI에서 사용할 수 있는 형태로 변환된 BackupSessionUiModel
      */
+    @SuppressLint("DefaultLocale")
     private fun BackupSessionEntity.toUiModel(): BackupSessionUiModel {
         val date = Date(backupTimestamp)
         val resultText = when (backupResult) {
@@ -259,6 +253,7 @@ class HistoryViewModel @Inject constructor(
      * 
      * @return UI에서 사용할 수 있는 형태로 변환된 FileHistoryUiModel
      */
+    @SuppressLint("DefaultLocale")
     private fun FileHistoryEntity.toUiModel(): FileHistoryUiModel {
         // 파일 크기를 KB 또는 MB 단위로 변환
         val fileSizeText = if (fileSize < 1024 * 1024) {

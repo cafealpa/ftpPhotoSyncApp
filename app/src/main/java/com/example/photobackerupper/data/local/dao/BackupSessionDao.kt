@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.example.photobackerupper.data.local.entity.BackupSessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 interface BackupSessionDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSession(session: BackupSessionEntity): Long
+
+    @Update
+    suspend fun updateSession(session: BackupSessionEntity): Int
 
     @Query("SELECT * FROM backup_session ORDER BY backupTimestamp DESC")
     fun getAllSessions(): Flow<List<BackupSessionEntity>>
