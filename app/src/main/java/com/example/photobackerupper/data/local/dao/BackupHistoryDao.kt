@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BackupHistoryDao {
@@ -19,4 +20,7 @@ interface BackupHistoryDao {
 
     @Query("SELECT * FROM file_history WHERE uploadTimestamp >= :startTimestamp ORDER BY uploadTimestamp DESC")
     suspend fun getHistoryAfterTimestamp(startTimestamp: Long): List<FileHistoryEntity> // 특정 시간 이후 완료된 항목
+
+    @Query("SELECT * FROM file_history WHERE sessionId = :sessionId ORDER BY uploadTimestamp DESC")
+    fun getFilesForSession(sessionId: Long): Flow<List<FileHistoryEntity>>
 }

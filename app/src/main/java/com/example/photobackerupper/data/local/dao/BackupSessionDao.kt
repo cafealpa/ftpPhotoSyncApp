@@ -17,9 +17,6 @@ interface BackupSessionDao {
     @Query("SELECT * FROM backup_session ORDER BY backupTimestamp DESC")
     fun getAllSessions(): Flow<List<BackupSessionEntity>>
 
-    @Query("SELECT * FROM file_history WHERE sessionId = :sessionId ORDER BY uploadTimestamp DESC")
-    fun getFilesForSession(sessionId: Long): Flow<List<FileHistoryEntity>>
-
     @Query("SELECT * FROM backup_session WHERE id = :sessionId")
     suspend fun getSessionById(sessionId: Long): BackupSessionEntity?
 }
