@@ -1,6 +1,7 @@
 package com.example.photobackerupper.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -12,6 +13,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.Executors
 import javax.inject.Singleton
 
 @Module
@@ -50,8 +52,15 @@ object AppModule {
             AppDatabase::class.java,
             "photo_backer_upper_db"
         )
-        .addMigrations(MIGRATION_1_2)
-        .build()
+            .setQueryCallback(
+                { sqlQuery, bindArgs ->
+                    Log.i("DB Query", "SQL: $sqlQuery \n Args: $bindArgs")
+
+                },
+                Executors.newSingleThreadExecutor()
+            )
+            .addMigrations(MIGRATION_1_2)
+            .build()
     }
 
     @Provides
