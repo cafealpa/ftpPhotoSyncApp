@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BackupHistoryDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertFileHistory(fileHistory: FileHistoryEntity)
 
     @Query("SELECT filePath FROM file_history WHERE status = 'SUCCESS'")
