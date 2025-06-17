@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.logging.Logger
+import kotlin.math.pow
 
 @Singleton
 // 로거 추가
@@ -26,14 +27,16 @@ class FtpClientWrapper @Inject constructor() {
         val ftpClient = FTPClient()
         try {
             // 한글 파일명을 위한 UTF-8 인코딩 설정
-            ftpClient.setControlEncoding("UTF-8")
+            ftpClient.controlEncoding = "UTF-8"
 
             // 타임아웃 설정 (더 짧게 설정하여 빠른 재시도)
             ftpClient.connectTimeout = 20000 // 20초
             ftpClient.defaultTimeout = 20000 // 20초
             ftpClient.dataTimeout = Duration.of(20, ChronoUnit.SECONDS)
-            ftpClient.setControlKeepAliveTimeout(10) // 10초마다 NOOP 명령어 전송
-            ftpClient.controlKeepAliveReplyTimeout = 20000 // 제어 연결 유지 응답 대기 시간
+//            ftpClient.setControlKeepAliveTimeout(10) // 10초마다 NOOP 명령어 전송
+            ftpClient.setControlKeepAliveTimeout(Duration.ofSeconds(10)) // 10초마다 NOOP 명령어 전송
+//            ftpClient.controlKeepAliveReplyTimeout = 20000 // 제어 연결 유지 응답 대기 시간
+            ftpClient.setControlKeepAliveReplyTimeout(Duration.ofSeconds(20)) // 제어 연결 유지 응답 대기 시간
 
             // 소켓 버퍼 크기 설정
             ftpClient.bufferSize = 1024 * 1024 // 1MB 버퍼 크기
@@ -43,7 +46,7 @@ class FtpClientWrapper @Inject constructor() {
             var retries = 0
             val maxRetries = 5 // 최대 재시도 횟수 증가
 
-            while (!connected && retries < maxRetries) {
+            while (!connected) {
                 try {
                     // 연결 시도 전에 네트워크 연결이 활성 상태인지 확인하기 위한 작은 지연 추가
                     if (retries > 0) {
@@ -87,7 +90,7 @@ class FtpClientWrapper @Inject constructor() {
             var loginRetries = 0
             val maxLoginRetries = 3
 
-            while (!loggedIn && loginRetries < maxLoginRetries) {
+            while (!loggedIn) {
                 try {
                     // 로그인
                     if (ftpClient.login(settings.userName, settings.password)) {
@@ -104,11 +107,6 @@ class FtpClientWrapper @Inject constructor() {
                     logger.warning("FTP login attempt $loginRetries failed. Retrying...")
                     kotlinx.coroutines.delay(1000) // 1초 대기 후 재시도
                 }
-            }
-
-            if (!loggedIn) {
-                logger.info("FTP login failed for user: ${settings.userName} after $maxLoginRetries attempts")
-                return@withContext Result.failure(IOException("FTP login failed after multiple attempts."))
             }
 
             // 설정
@@ -141,7 +139,7 @@ class FtpClientWrapper @Inject constructor() {
             val maxUploadRetries = 3
             var uploadTime = 0L
 
-            while (!uploadSuccess && uploadRetries < maxUploadRetries) {
+            while (!uploadSuccess) {
                 try {
                     val startTime = System.currentTimeMillis()
                     val inputStream = FileInputStream(localFile)
@@ -167,7 +165,7 @@ class FtpClientWrapper @Inject constructor() {
                     }
 
                     // 지수 백오프로 대기 시간 설정
-                    val backoffTime = (Math.pow(2.0, uploadRetries.toDouble()) * 1000).toLong().coerceAtMost(10000)
+                    val backoffTime = (2.0.pow(uploadRetries.toDouble()) * 1000).toLong().coerceAtMost(10000)
                     logger.info("Waiting ${backoffTime}ms before retry upload")
                     kotlinx.coroutines.delay(backoffTime)
 
@@ -176,7 +174,7 @@ class FtpClientWrapper @Inject constructor() {
                         logger.info("FTP connection lost, reconnecting...")
                         ftpClient.connect(settings.serverIp, settings.port)
                         // 한글 파일명을 위한 UTF-8 인코딩 설정 (재연결 시에도 필요)
-                        ftpClient.setControlEncoding("UTF-8")
+                        ftpClient.controlEncoding = "UTF-8"
                         ftpClient.login(settings.userName, settings.password)
                         ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
                         ftpClient.enterLocalPassiveMode()
@@ -185,12 +183,9 @@ class FtpClientWrapper @Inject constructor() {
                 }
             }
 
-            if (uploadSuccess) {
+            run {
                 logger.info("Final upload result: Success for ${localFile.name}")
                 Result.success(uploadTime) // 성공: 업로드 시간 반환
-            } else {
-                logger.warning("Final upload result: Failed for ${localFile.name} after $maxUploadRetries attempts")
-                Result.failure(IOException("FTP upload failed after multiple attempts: ${ftpClient.replyString}"))
             }
         } catch (e: Exception) {
             logger.severe("Exception during FTP operation: ${e.message}")

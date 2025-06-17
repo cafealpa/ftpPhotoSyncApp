@@ -1,9 +1,13 @@
 package com.example.photobackerupper.service
 
 import android.app.*
-import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.example.photobackerupper.MainActivity
 import com.example.photobackerupper.R
@@ -27,11 +31,6 @@ import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.util.logging.Logger
 import javax.inject.Inject
-import android.os.PowerManager
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 
 /**
  * 백그라운드에서 사진 백업을 처리하는 서비스.
@@ -151,7 +150,7 @@ class BackupService : Service() {
         createNotificationChannel()
 
         // WakeLock 초기화
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
             "PhotoBackerUpper::BackupWakeLock"
@@ -407,7 +406,7 @@ class BackupService : Service() {
                                     putExtra(EXTRA_TOTAL_COUNT, _backupState.value.totalCount)
                                     putExtra(EXTRA_SESSION_START_TIME, startTime) // 세션 시작 시간 추가
 
-                                    logger.info("EXTRA_COMPLETED_COUNT: ${_backupState.value.completedCount}, EXTRA_TOTAL_COUNT: ${_backupState.value.totalCount}");
+                                    logger.info("EXTRA_COMPLETED_COUNT: ${_backupState.value.completedCount}, EXTRA_TOTAL_COUNT: ${_backupState.value.totalCount}")
                                 }.setPackage(packageName))
                                 // 알림도 즉시 업데이트
                                 updateNotification()
@@ -632,7 +631,7 @@ class BackupService : Service() {
      * 네트워크 변경 사항을 감지하고 백업 프로세스에 영향을 줄 수 있는 변화에 대응합니다.
      */
     private fun setupNetworkMonitoring() {
-        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
 
         // 네트워크 요청 구성
         val networkRequest = NetworkRequest.Builder()
