@@ -55,12 +55,9 @@ class MainViewModel @Inject constructor(
     private val backupHistoryDao: BackupHistoryDao
 ) : ViewModel() {
 
-    private val logger = Logger.getLogger(MainViewModel::class.java.name)
-
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState = _uiState.asStateFlow()
 
-    private var backupJob: Job? = null
     private var backupReceiver: BroadcastReceiver? = null
 
     init {
@@ -88,12 +85,10 @@ class MainViewModel @Inject constructor(
 
     private fun registerBackupReceiver() {
 
-        logger.info("BackupReceiver registered")
-
         backupReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 // 로그추가
-                logger.info("Received broadcast ACTION=${intent.action}, COMPLETED=${intent.getIntExtra(BackupService.EXTRA_COMPLETED_COUNT, -1)}, total=${intent.getIntExtra(BackupService.EXTRA_TOTAL_COUNT, -1)}")
+//                logger.info("Received broadcast ACTION=${intent.action}, COMPLETED=${intent.getIntExtra(BackupService.EXTRA_COMPLETED_COUNT, -1)}, total=${intent.getIntExtra(BackupService.EXTRA_TOTAL_COUNT, -1)}")
 
                 when (intent.action) {
                     BackupService.ACTION_BACKUP_STARTED -> {
@@ -112,9 +107,6 @@ class MainViewModel @Inject constructor(
                     BackupService.ACTION_BACKUP_PROGRESS -> {
                         val completedCount = intent.getIntExtra(BackupService.EXTRA_COMPLETED_COUNT, 0)
                         val totalCount = intent.getIntExtra(BackupService.EXTRA_TOTAL_COUNT, 0)
-
-                        logger.info("res completedCnt: $completedCount")
-                        logger.info("res totalCnt: $totalCount")
 
                         // Update UI immediately with the latest counts
                         _uiState.update {

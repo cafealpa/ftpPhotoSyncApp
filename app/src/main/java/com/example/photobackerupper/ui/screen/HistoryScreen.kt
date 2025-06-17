@@ -164,9 +164,9 @@ fun SessionItem(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -174,9 +174,9 @@ fun SessionItem(
                 Text("성공: ${session.successCount}개")
                 Text("실패: ${session.failureCount}개")
             }
-            
+
             Spacer(modifier = Modifier.height(4.dp))
-            
+
             Text(
                 text = "총 소요 시간: ${session.totalDuration}",
                 style = MaterialTheme.typography.bodyMedium
@@ -210,9 +210,9 @@ fun FileListScreen(
                         text = "${it.date} ${it.time}",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    
+
                     Spacer(modifier = Modifier.height(8.dp))
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -220,9 +220,9 @@ fun FileListScreen(
                         Text("상태: ${it.result}", color = it.resultColor)
                         Text("총 파일: ${it.successCount + it.failureCount}개")
                     }
-                    
+
                     Spacer(modifier = Modifier.height(4.dp))
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -230,23 +230,23 @@ fun FileListScreen(
                         Text("성공: ${it.successCount}개")
                         Text("실패: ${it.failureCount}개")
                     }
-                    
+
                     Spacer(modifier = Modifier.height(4.dp))
-                    
+
                     Text("총 소요 시간: ${it.totalDuration}")
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         // 파일 목록
         Text(
             text = "백업 파일 목록",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         if (files.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -254,9 +254,25 @@ fun FileListScreen(
                     .height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("파일 이력이 없습니다.")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("파일 이력이 없습니다.")
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 세션 상태에 따른 추가 메시지 표시
+                    session?.let {
+                        when (it.result) {
+                            "사용자 중지" -> Text("백업이 사용자에 의해 중지되었습니다.", color = Color.Gray)
+                            "오류 발생" -> Text("백업 중 오류가 발생했습니다.", color = Color.Gray)
+                            else -> {}
+                        }
+                    }
+                }
             }
         } else {
+            // 파일이 있으면 항상 표시
             LazyColumn(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -285,9 +301,9 @@ fun FileItem(file: FileHistoryUiModel) {
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
-            
+
             Spacer(modifier = Modifier.height(4.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -302,9 +318,9 @@ fun FileItem(file: FileHistoryUiModel) {
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.width(8.dp))
-        
+
         Box(
             modifier = Modifier
                 .background(file.statusColor.copy(alpha = 0.2f))
@@ -336,16 +352,16 @@ fun ErrorMessage(
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.Red
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Button(onClick = onDismiss) {
                 Text("확인")
             }
