@@ -70,7 +70,8 @@ data class FileHistoryUiModel(
     val fileSize: String,
     val uploadDuration: String,
     val status: String,
-    val statusColor: androidx.compose.ui.graphics.Color
+    val statusColor: androidx.compose.ui.graphics.Color,
+    val filePath: String
 )
 
 /**
@@ -282,7 +283,8 @@ class HistoryViewModel @Inject constructor(
             fileSize = fileSizeText,
             uploadDuration = durationText,
             status = statusText,
-            statusColor = statusColor
+            statusColor = statusColor,
+            filePath = filePath
         )
     }
 }

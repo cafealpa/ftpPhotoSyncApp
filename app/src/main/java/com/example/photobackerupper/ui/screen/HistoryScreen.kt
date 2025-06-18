@@ -14,10 +14,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.photobackerupper.ui.viewmodel.BackupSessionUiModel
 import com.example.photobackerupper.ui.viewmodel.FileHistoryUiModel
 import com.example.photobackerupper.ui.viewmodel.HistoryViewModel
@@ -293,6 +297,20 @@ fun FileItem(file: FileHistoryUiModel) {
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Add thumbnail image on the left
+        val context = LocalContext.current
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(file.filePath)
+                .crossfade(true)
+                .build(),
+            contentDescription = "File thumbnail",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(56.dp)
+                .padding(end = 8.dp)
+        )
+
         Column(
             modifier = Modifier.weight(1f)
         ) {
