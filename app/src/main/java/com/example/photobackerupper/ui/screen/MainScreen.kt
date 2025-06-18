@@ -145,7 +145,29 @@ fun BackupProgressView(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
-        CircularProgressIndicator()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val progress = if (state.totalFilesToBackup > 0) {
+                state.completedFileCount.toFloat() / state.totalFilesToBackup.toFloat()
+            } else {
+                0f
+            }
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(8.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${(progress * 100).toInt()}%",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "${state.processingText} (${state.completedFileCount} / ${state.totalFilesToBackup})",
