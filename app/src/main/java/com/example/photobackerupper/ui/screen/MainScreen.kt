@@ -23,7 +23,7 @@ import com.example.photobackerupper.ui.viewmodel.MainUiState
 import com.example.photobackerupper.ui.viewmodel.MainViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import java.util.Locale
+import java.util.*
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -151,17 +151,24 @@ fun BackupProgressView(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val progress = if (state.totalFilesToBackup > 0) {
-                state.completedFileCount.toFloat() / state.totalFilesToBackup.toFloat()
-            } else {
-                0f
+//            val progress = if (state.totalFilesToBackup > 0) {
+//                state.completedFileCount.toFloat() / state.totalFilesToBackup.toFloat()
+//            } else {
+//                0f
+//            }
+            var progress by remember {
+                mutableFloatStateOf(
+                    if (state.totalFilesToBackup == 0) 0f
+                    else state.completedFileCount.toFloat() / state.totalFilesToBackup.toFloat()
+                )
             }
             LinearProgressIndicator(
-                progress = progress,
+                progress = { progress },
                 modifier = Modifier
                     .weight(1f)
                     .height(8.dp)
             )
+
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "${(progress * 100).toInt()}%",
