@@ -18,37 +18,70 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.pow
 
+data class ConnectionResult(val isFailure: Boolean, val message: String? = null)
+
 @Singleton
 // 로거 추가
 class FtpClientWrapper @Inject constructor() {
 
     private val logger = Logger.getLogger(FtpClientWrapper::class.java.name)
 
+    fun getFtpClient(): FTPClient {
+        val ftpClient = FTPClient()
+        // 한글 파일명을 위한 UTF-8 인코딩 설정
+        ftpClient.controlEncoding = "UTF-8"
+
+        // 타임아웃 설정 (더 짧게 설정하여 빠른 재시도)
+        ftpClient.connectTimeout = 5000 // 5초
+        ftpClient.defaultTimeout = 5000 // 5초
+        ftpClient.dataTimeout = Duration.of(20, ChronoUnit.SECONDS)
+        ftpClient.setControlKeepAliveTimeout(Duration.ofSeconds(10)) // 10초마다 NOOP 명령어 전송
+        ftpClient.setControlKeepAliveReplyTimeout(Duration.ofSeconds(20)) // 제어 연결 유지 응답 대기 시간
+        // 소켓 버퍼 크기 설정
+        ftpClient.bufferSize = 1024 * 1024 // 1MB 버퍼 크기
+        return ftpClient
+    }
+
+    fun checkConnection(settings: FtpSettings):ConnectionResult {
+        val ftpClient = getFtpClient()
+        try {
+            ftpClient.connect(settings.serverIp, settings.port)
+
+            if (!FTPReply.isPositiveCompletion(ftpClient.replyCode)) {
+                Log.i("FTPClientWrapper", "FTP server refused connection. Reply code: ${ftpClient.replyCode}")
+                if (ftpClient.isConnected) {
+                    ftpClient.disconnect()
+                }
+                throw IOException("FTP server refused connection.")
+            }
+        } catch (e: IOException) {
+            return ConnectionResult(isFailure = true, message = e.message)
+        } finally {
+            if (ftpClient.isConnected) {
+                try {
+                    ftpClient.logout()
+                    ftpClient.disconnect()
+                    Log.i("FTPClientWrapper", "Logged out and disconnected from FTP server.")
+                } catch (ex: IOException) {
+                    logger.warning("IOException during FTP logout/disconnect: ${ex.message}")
+                    // 무시
+                }
+            }
+        }
+        return ConnectionResult(isFailure = false)
+    }
+
     suspend fun uploadFile(
         localFile: File,
         settings: FtpSettings
     ): Result<Long> = withContext(Dispatchers.IO) {
-        val ftpClient = FTPClient()
+        val ftpClient = getFtpClient()
+
         try {
-            // 한글 파일명을 위한 UTF-8 인코딩 설정
-            ftpClient.controlEncoding = "UTF-8"
-
-            // 타임아웃 설정 (더 짧게 설정하여 빠른 재시도)
-            ftpClient.connectTimeout = 20000 // 20초
-            ftpClient.defaultTimeout = 20000 // 20초
-            ftpClient.dataTimeout = Duration.of(20, ChronoUnit.SECONDS)
-//            ftpClient.setControlKeepAliveTimeout(10) // 10초마다 NOOP 명령어 전송
-            ftpClient.setControlKeepAliveTimeout(Duration.ofSeconds(10)) // 10초마다 NOOP 명령어 전송
-//            ftpClient.controlKeepAliveReplyTimeout = 20000 // 제어 연결 유지 응답 대기 시간
-            ftpClient.setControlKeepAliveReplyTimeout(Duration.ofSeconds(20)) // 제어 연결 유지 응답 대기 시간
-
-            // 소켓 버퍼 크기 설정
-            ftpClient.bufferSize = 1024 * 1024 // 1MB 버퍼 크기
-
             // 연결 재시도 메커니즘
             var connected = false
             var retries = 0
-            val maxRetries = 5 // 최대 재시도 횟수 증가
+            val maxRetries = 3 // 최대 재시도 횟수 증가
 
             while (!connected) {
                 try {
@@ -69,14 +102,14 @@ class FtpClientWrapper @Inject constructor() {
                     ftpClient.keepAlive = true
                     ftpClient.soTimeout = 30000 // 소켓 타임아웃 30초
 
-                    val reply = ftpClient.replyCode
-                    if (!FTPReply.isPositiveCompletion(reply)) {
-                        Log.i("FTPClientWrapper", "FTP server refused connection. Reply code: $reply")
+                    if (!FTPReply.isPositiveCompletion(ftpClient.replyCode)) {
+                        Log.i("FTPClientWrapper", "FTP server refused connection. Reply code: ${ftpClient.replyCode}")
                         if (ftpClient.isConnected) {
                             ftpClient.disconnect()
                         }
                         throw IOException("FTP server refused connection.")
                     }
+
                     connected = true
                     Log.i("FTPClientWrapper", "Successfully connected to FTP server: ${settings.serverIp}:${settings.port}")
                 } catch (e: IOException) {

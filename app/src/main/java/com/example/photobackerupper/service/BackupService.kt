@@ -1,6 +1,7 @@
 package com.example.photobackerupper.service
 
 import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
@@ -17,6 +18,7 @@ import com.example.photobackerupper.data.local.entity.BackupResult
 import com.example.photobackerupper.data.local.entity.BackupSessionEntity
 import com.example.photobackerupper.data.local.entity.BackupStatus
 import com.example.photobackerupper.data.local.entity.FileHistoryEntity
+import com.example.photobackerupper.data.model.FtpSettings
 import com.example.photobackerupper.data.remote.FtpClientWrapper
 import com.example.photobackerupper.data.repository.MediaRepository
 import com.example.photobackerupper.data.repository.SettingsRepository
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
+import java.io.IOException
 import java.util.logging.Logger
 import javax.inject.Inject
 
@@ -359,6 +362,13 @@ class BackupService : Service() {
                     stopSelf() // 서비스 중지
                     return@launch
                 }
+
+                // FTP Client 연결 확인
+                val connectionResult = ftpClient.checkConnection(ftpSettings)
+                if (connectionResult.isFailure) {
+                    throw IOException("FTP 서버에 연결할 수 없습니다.")
+                }
+                
 
                 _backupState.update { it.copy(totalCount = targetFiles.size) } // 총 파일 수 업데이트
                 updateNotification() // 알림 업데이트
@@ -704,11 +714,11 @@ class BackupService : Service() {
      * 현재 네트워크 연결 상태를 확인합니다.
      * @return 네트워크가 연결되어 있으면 true, 그렇지 않으면 false
      */
-//    private fun isNetworkConnected(): Boolean {
-//        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-//        val network = cm.activeNetwork ?: return false
-//        val capabilities = cm.getNetworkCapabilities(network) ?: return false
-//
-//        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-//    }
+    private fun isNetworkConnected(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 }
